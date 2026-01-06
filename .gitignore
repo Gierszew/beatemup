@@ -1,0 +1,4 @@
+/src/SDL2*
+/src/libSDL2.a
+/src/x64
+.vscode
