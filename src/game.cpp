@@ -21,6 +21,15 @@ bool Game::init(const char* title, int width, int height) {
     }
 
     background = loadTexture("endless.bmp");
+    
+    player = new Player();
+    player->load(100, 100, 50, 50, (char*)"player.bmp");
+    player->setTexture(renderer);
+
+    camera = new Camera(width, height);
+
+    lastTick = SDL_GetTicks();
+    deltaTime = 0.0f;
 
     isRunning = true;
     return true;
@@ -36,11 +45,24 @@ void Game::handleEvents() {
         if (event.type == SDL_QUIT) {
             isRunning = false;
         }
+        else if (event.type == SDL_KEYDOWN) {
+            switch (event.key.keysym.sym) {
+                case SDLK_ESCAPE:
+                    isRunning = false;
+                    break;
+            }
+        }
     }
 }
 
 void Game::update() {
     // Update game logic here
+    Uint32 currentTick = SDL_GetTicks();
+    deltaTime = (currentTick - lastTick) / 1000.0f;
+    lastTick = currentTick;
+
+    player->update(deltaTime);
+    camera->update(player->x + player->width/2, player->y + player->height/2);
 }
 
 void Game::render() {
@@ -51,6 +73,7 @@ void Game::render() {
     
     if (background) {
         SDL_RenderCopy(renderer, background, NULL, NULL);
+        player->draw(renderer, camera);
     }
     SDL_RenderPresent(renderer);
 }

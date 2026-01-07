@@ -5,22 +5,24 @@
 
 class GameObject {
     public:
-    void load(int x, int y, int width, int height, char* textureId);
+    void load(float x, float y, int width, int height, char* textureId);
     void setTexture(SDL_Renderer* renderer);
-    void draw(SDL_Renderer* renderer);
+    void draw(SDL_Renderer* renderer, SDL_Rect viewPort);
     void update();
     void clean();
 
-    protected:
-
     SDL_Texture* texture;
+
     char* textureId;
-    int currentFrame;
-    int currentRow;
-    int x;
-    int y;
+
+    int currentFrame;       // pozniej do wywalenia
+    int currentRow;         // pozniej do wywalenia
+    float x;
+    float y;
     int width;
     int height;
+
+    float speed;
 };
 
 #endif
