@@ -6,8 +6,10 @@ void GameObject::load(float x, float y, int width, int height, char* textureId) 
     this->width = width;
     this->height = height;
     this->textureId = textureId;
-    currentFrame = 1;
-    currentRow = 1;
+    currentFrame = 0;
+    currentRow = 0;
+    worldWidth = 1047;
+    worldHeight = 720;
 }
 
 void GameObject::setTexture(SDL_Renderer* renderer) {
@@ -41,11 +43,14 @@ void GameObject::setTexture(SDL_Renderer* renderer) {
 }
 
 
-void GameObject::draw(SDL_Renderer* renderer, SDL_Rect viewPort) {
-    // SDL_Rect srcRect = { currentFrame * width, currentRow * height, width, height };
+void GameObject::draw(SDL_Renderer* renderer, Camera* camera, bool flip) {
+    SDL_Rect viewPort = camera->getViewPort();
+    SDL_Rect srcRect = { currentFrame * originalWidth, currentRow * originalHeight, originalWidth, originalHeight };
     printf("Drawing GameObject at position (%f, %f) with viewport offset (%d, %d)\n", x, y, viewPort.x, viewPort.y);
-    SDL_Rect destRect = { (int)x - viewPort.x, (int)y - viewPort.y, width, height };
-    SDL_RenderCopy(renderer, this->texture, NULL, &destRect);
+    SDL_Rect destRect = { (int)((x - viewPort.x)), (int)((y - viewPort.y)), (int)(width), (int)(height) };
+
+    SDL_RendererFlip rFlip = flip ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+    SDL_RenderCopyEx(renderer, this->texture, &srcRect, &destRect, 0, NULL, rFlip);
 }
 
 void GameObject::update() {
