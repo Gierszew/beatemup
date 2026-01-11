@@ -41,6 +41,8 @@ bool Game::init(const char* title, int width, int height) {
 
     camera = new Camera(width, height);
 
+    spawnEnemies();
+
     this->worldBounds = WorldBounds(0, 0, worldWidth, worldHeight);
 
     if (!font.load(renderer, "assets/cs8x8.bmp")) {
@@ -136,11 +138,13 @@ void Game::update() {
     worldBounds.clampPlayer(&player->x, &player->y, player->width, player->height);
 
     float requiredZoom = 1.0f / player->scale;
-    printf("Required zoom: %f\n", requiredZoom);
     camera->setZoom(requiredZoom);
     int visualCenterX = (int)(player->x + player->width / 2);
     int visualCenterY = (int)(player->y + player->height / 2);
     camera->update(visualCenterX, visualCenterY, worldWidth, worldHeight);
+
+    updateEnemies(deltaTime);
+    checkCollisions();
 
     printf("Player: scale=%.1f world=(%.0f,%.0f) size=%dx%d center=(%d,%d)\n",
            player->scale, player->x, player->y, player->width, player->height,
@@ -160,6 +164,61 @@ void Game::renderBackground() {
     }
 }
 
+void Game::spawnEnemies() {
+    maxEnemies = 5;
+    enemyCount = 2;
+
+    enemies = (Enemy**)malloc(sizeof(Enemy*) * maxEnemies);
+
+    enemies[0] = new Enemy();
+    enemies[0]->init(CHASER, 400, 400, player);
+    enemies[0]->setTexture(renderer);
+
+    enemies[1] = new Enemy();
+    enemies[1]->init(RANGED, 800, 400, player);
+    enemies[1]->setTexture(renderer);
+
+    printf("Spawned %d enemies.\n", enemyCount);
+}
+
+void Game::updateEnemies(float dt) {
+    for (int i = 0; i < enemyCount; i++) {
+        if (enemies[i] && enemies[i]->isAlive()) {
+            enemies[i]->update(dt);
+        }
+    }
+}
+
+void Game::renderEnemies() {
+    for (int i = 0; i < enemyCount; i++) {
+        if (enemies[i] && enemies[i]->isAlive()) {
+            enemies[i]->draw(renderer, camera);
+            printf("Rendering Enemy %d at (%.1f, %.1f)\n", i, enemies[i]->x, enemies[i]->y);
+        } else {
+            printf("Enemy %d is not alive, skipping render.\n", i);
+        }
+    }
+}
+
+void Game::checkCollisions() {
+    for (int i = 0; i < enemyCount; i++) {
+        if (!enemies[i] || !enemies[i]->isAlive()) continue;
+        
+        // Prosty bounding box collision
+        if (player->x < enemies[i]->x + enemies[i]->width &&
+            player->x + player->width > enemies[i]->x &&
+            player->y < enemies[i]->y + enemies[i]->height &&
+            player->y + player->height > enemies[i]->y) {
+            
+            printf("COLLISION: Player hit enemy!\n");
+            enemies[i]->takeDamage(1);
+            
+            // Dla punktu C: tutaj dodasz obrażenia graczowi
+            // player->takeDamage(enemies[i]->damage);
+        }
+    }
+}
+
 void Game::render() {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
@@ -171,6 +230,7 @@ void Game::render() {
     renderBackground();
     
     player->draw(renderer, camera);
+    renderEnemies();
 
     renderHUD();
     SDL_RenderPresent(renderer);

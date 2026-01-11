@@ -10,6 +10,7 @@ Enemy::Enemy() {
     attackRange = ATTACK_DISTANCE;
     attackCooldown = 0.0f;
     stunTimer = 0.0f;
+    scale = 5.0f;
 }
 
 void Enemy::init(EnemyType type, float x, float y, Player* target) {
@@ -19,10 +20,18 @@ void Enemy::init(EnemyType type, float x, float y, Player* target) {
     this->target = target;
     health = MAX_HEALTH;
     state = PATROLLING;
+    currentFrame = 0;
+    currentRow = 0;
 
-    char* textureFile = "assets/ninja.bmp";
+    this->width = 32;
+    this->height = 64;
 
-    GameObject::load(x, y, 32, 64, textureFile);
+    this->originalHeight = 64;
+    this->originalWidth = 32;
+
+    char* textureFile = (char*)"assets/mage.bmp";
+
+    GameObject::load(x, y - (height * scale - height), width * scale, height * scale, textureFile);
 
     if (type == CHASER) {
         speed = CHASER_SPEED;
@@ -37,6 +46,9 @@ void Enemy::init(EnemyType type, float x, float y, Player* target) {
 
 void Enemy::update(float dt) {
     if (!isAlive() || !target) return;
+
+    printf("Enemy Update: type=%d state=%d pos=(%.1f,%.1f) target=(%.1f,%.1f)\n",
+           type, state, x, y, target->x, target->y);
 
     switch(state) {
         case STUNNED:
@@ -145,7 +157,7 @@ void Enemy::takeDamage(int damage) {
 }
 
 void Enemy::draw(SDL_Renderer* renderer, Camera* camera) {
-    if (!isAlive()) return;
+    if (!isAlive() || !texture) return;
     
     // Kolor wg typu/stanu
     if (type == CHASER) {
@@ -160,5 +172,5 @@ void Enemy::draw(SDL_Renderer* renderer, Camera* camera) {
     
     GameObject::draw(renderer, camera, false);
     // Reset koloru
-    SDL_SetTextureColorMod(texture, 255, 255, 255);
+    /* SDL_SetTextureColorMod(texture, 255, 255, 255); */
 }

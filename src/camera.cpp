@@ -21,8 +21,6 @@ void Camera::update(int targetX, int targetY, int worldWidth, int worldHeight) {
     viewPort.x = x;
     viewPort.y = y;
     
-    printf("Camera: target=(%d,%d) screen/zoom=%d/%d pos=(%d,%d)\n",
-           targetX, targetY, screenWidth, (int)(screenWidth/(2*zoom)), x, y);
 }
 
 SDL_Rect Camera::getViewPort() {
@@ -30,17 +28,9 @@ SDL_Rect Camera::getViewPort() {
 }
 
 void Camera::setZoom(float newZoom) {
-    printf("=== SETZOOM DEBUG ===\n");
-    printf("Input zoom: %.2f\n", newZoom);
-    printf("screenWidth=%d, screenHeight=%d\n", screenWidth, screenHeight); // PROBLEM TUTAJ!
-    
-    // Jeśli te wartości są dziwne (np. 10470 zamiast 800), TO JEST BŁĄD!
-    
-    // Tymczasowo: ZABLOKUJ zoom na 1.0
     zoom = 1.0f;  // TYMCZASOWO!
     
     viewPort.w = (int)(screenWidth / zoom);
     viewPort.h = (int)(screenHeight / zoom);
     
-    printf("Result: viewport=%dx%d\n", viewPort.w, viewPort.h);
 }

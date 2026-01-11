@@ -73,9 +73,7 @@ void BackgroundLayer::draw(SDL_Renderer* renderer, SDL_Rect viewport, float zoom
     
     int startY = (int)std::floor((float)(worldTop + offsetY) / height) - 1;
     int endY = (int)ceil((float)(worldBottom + offsetY) / height) + 1;
-    
-    printf("Tiles needed: X[%d to %d] Y[%d to %d]\n", startX, endX, startY, endY);
-    
+        
     for (int x = startX; x <= endX; x++) {
         for (int y = startY; y <= endY; y++) {
             SDL_Rect dest = {

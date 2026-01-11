@@ -29,6 +29,7 @@ class Enemy : public GameObject {
     float attackRange;
     float attackCooldown;
     float stunTimer;
+    float scale;
 
     void updateChaser(float dt);
     void updateRanged(float dt);

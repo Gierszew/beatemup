@@ -6,6 +6,7 @@
 #include "backgroundlayer.h"
 #include "worldbounds.h"
 #include "fontrender.h"
+#include "enemy.h"
 
 class Game {
     private:
@@ -15,6 +16,9 @@ class Game {
 
     Player* player;
     Camera* camera;
+    Enemy** enemies;
+    int enemyCount;
+    int maxEnemies;
     BackgroundLayer backgroundLayers[3];
     int layerCount;
     WorldBounds worldBounds;
@@ -42,6 +46,11 @@ class Game {
     void renderHUD();
     void initBackground();
     void renderBackground();
+
+    void spawnEnemies();
+    void updateEnemies(float dt);
+    void renderEnemies();
+    void checkCollisions();
     ~Game();
 
 };
