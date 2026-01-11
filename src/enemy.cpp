@@ -23,15 +23,12 @@ void Enemy::init(EnemyType type, float x, float y, Player* target) {
     currentFrame = 0;
     currentRow = 0;
 
-    this->width = 32;
-    this->height = 64;
-
-    this->originalHeight = 64;
     this->originalWidth = 32;
+    this->originalHeight = 64;
 
-    char* textureFile = (char*)"assets/mage.bmp";
+    char* textureFile = (char*)"assets/ninja.bmp";
 
-    GameObject::load(x, y - (height * scale - height), width * scale, height * scale, textureFile);
+    GameObject::load(x, y - (originalHeight * scale - originalHeight), originalWidth * scale, originalHeight * scale, textureFile);
 
     if (type == CHASER) {
         speed = CHASER_SPEED;
@@ -42,6 +39,13 @@ void Enemy::init(EnemyType type, float x, float y, Player* target) {
         damage = 1;
         attackRange = 200.0f;
     }
+
+    float bodyWidth = 32 * 0.7f;
+    float bodyHeight = 64 * 0.8f;
+    float bodyOffsetX = (32 - bodyWidth) / 2.0f;
+    float bodyOffsetY = 64 - bodyHeight;
+    
+    setBodyHitbox(bodyOffsetX, bodyOffsetY, bodyWidth, bodyHeight);
 }
 
 void Enemy::update(float dt) {

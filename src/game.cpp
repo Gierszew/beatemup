@@ -201,21 +201,81 @@ void Game::renderEnemies() {
 }
 
 void Game::checkCollisions() {
-    for (int i = 0; i < enemyCount; i++) {
-        if (!enemies[i] || !enemies[i]->isAlive()) continue;
-        
-        // Prosty bounding box collision
-        if (player->x < enemies[i]->x + enemies[i]->width &&
-            player->x + player->width > enemies[i]->x &&
-            player->y < enemies[i]->y + enemies[i]->height &&
-            player->y + player->height > enemies[i]->y) {
-            
-            printf("COLLISION: Player hit enemy!\n");
-            enemies[i]->takeDamage(1);
-            
-            // Dla punktu C: tutaj dodasz obrażenia graczowi
-            // player->takeDamage(enemies[i]->damage);
+    if (player->isAttacking()) {
+        for (int i = 0; i < enemyCount; i++) {
+            if (enemies[i]->isAlive()) {
+                Hitbox playerAttack = player->getAttackHitbox();
+                Hitbox enemyBody = enemies[i]->getBodyHitbox();
+
+                if (playerAttack.collidesWith(player->x, player->y, enemyBody, enemies[i]->x, enemies[i]->y)) {
+                    printf("Player attack hit Enemy %d!\n", i);
+                    enemies[i]->takeDamage(4);  // PLAYER'S ATTACK DAMAGE
+                }
+            }
         }
+    }
+
+    for (int i = 0; i < enemyCount; i++) {
+        if (enemies[i]->isAttacking() && enemies[i]->isAlive()) {
+            Hitbox enemyAttack = enemies[i]->getAttackHitbox();
+            Hitbox playerBody = player->getBodyHitbox();
+
+            if (enemyAttack.collidesWith(enemies[i]->x, enemies[i]->y, playerBody, player->x, player->y)) {
+                printf("Enemy %d attack hit Player!\n", i);
+                //player->takeDamage(enemies[i]->getDamage());
+            }
+        }
+    }
+
+    for (int i = 0; i < enemyCount; i++) {
+        if (enemies[i]->isAlive()) {
+                if (player->collidesWith(enemies[i])) {
+                    resolveCollisions(player, enemies[i]);
+                }
+        }
+    }
+}
+
+void Game::resolveCollisions(Player* player, Enemy* enemy) {
+    // Oblicz wektor od przeciwnika do gracza
+    float dx = player->x - enemy->x;
+    float dy = player->y - enemy->y;
+    
+    // Długość wektora
+    float distance = sqrt(dx*dx + dy*dy);
+    
+    if (distance == 0) {
+        // Jeśli dokładnie w tym samym miejscu, odsuń losowo
+        dx = 1.0f;
+        dy = 0.0f;
+        distance = 1.0f;
+    }
+    
+    // Normalizuj wektor
+    dx /= distance;
+    dy /= distance;
+    
+    // Minimalna odległość między hitboxami
+    float minDistance = (player->getBodyHitbox().width/2 + enemy->getBodyHitbox().width/2) * 0.9f;
+    
+    if (distance < minDistance) {
+        // Oblicz potrzebne przesunięcie
+        float overlap = minDistance - distance;
+        
+        // Odsuń gracza
+        player->setPosition(
+            player->x + dx * overlap,
+            player->y + dy * overlap
+        );
+        
+        // Możesz też odsunąć przeciwnika w przeciwnym kierunku
+        enemy->setPosition(
+            enemy->x - dx * overlap * 0.5f,
+            enemy->y - dy * overlap * 0.5f
+        );
+        
+        printf("Collision resolved: player moved by (%.1f, %.1f)\n", 
+               dx * overlap, dy * overlap);
     }
 }
 

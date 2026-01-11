@@ -1,5 +1,11 @@
 #include "gameobject.h"
 
+GameObject::GameObject() 
+    : texture(nullptr), textureId(nullptr), originalWidth(0), originalHeight(0),
+      currentFrame(0), currentRow(0), worldWidth(0), worldHeight(0),
+      x(0.0f), y(0.0f), width(0), height(0), speed(0.0f), scale(1.0f),
+      movingLeft(false) {};
+
 void GameObject::load(float x, float y, int width, int height, char* textureId) {
     this->x = x;
     this->y = y;

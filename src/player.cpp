@@ -17,6 +17,15 @@ void Player::load(int x, int y, int width, int height, char* textureId) {
     hp = 10;
 
     GameObject::load(x, y - (height * scale - height), width * scale, height * scale, textureId);
+
+    float bodyWidth = width * 0.6f;
+    float bodyHeight = height * 0.8f;
+    float bodyOffsetX = (width - bodyWidth) / 2.0f;
+    float bodyOffsetY = height - bodyHeight;
+
+    setBodyHitbox(bodyOffsetX, bodyOffsetY, bodyWidth, bodyHeight);
+
+    attackHitbox = Hitbox(0, 0, 0, 0); // Początkowo brak hitboxa ataku
 }
 
 void Player::setTexture(SDL_Renderer* renderer) {
@@ -101,6 +110,12 @@ void Player::update(float dt) {
             currentRow = 0;
             currentFrame = 0;  // Klatka spoczynkowa
     }
+
+    if (attackTimer <= 0 && state != IDLE && state != WALKING) {
+        state = IDLE;
+
+        setAttackHitbox(0, 0, 0, 0);
+    }
 }
 
 void Player::handleInput(float dt) {
@@ -157,10 +172,23 @@ void Player::handleInput(float dt) {
 void Player::attackLight() {
     state = ATTACKING_LIGHT;
     attackTimer = LIGHT_ATTACK_TIME;
+
+    float attackWidth = 60.0f;
+    float attackHeight = height / 2.0f;
+    float attackOffsetX = movingLeft ? -attackWidth : width;
+    float attackOffsetY = height / 4.0f;
+
+    setAttackHitbox(attackOffsetX, attackOffsetY, attackWidth, attackHeight);
 }
 
 void Player::attackHeavy() {
     state = ATTACKING_HEAVY;
     attackTimer = HEAVY_ATTACK_TIME;
-}
 
+    float attackWidth = 90.0f;
+    float attackHeight = height * 0.6f;
+    float attackOffsetX = movingLeft ? -attackWidth : width;
+    float attackOffsetY = height / 5.0f;
+
+    setAttackHitbox(attackOffsetX, attackOffsetY, attackWidth, attackHeight);
+}

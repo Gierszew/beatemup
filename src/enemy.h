@@ -50,10 +50,12 @@ class Enemy : public GameObject {
     void takeDamage(int damage);
     bool isAlive() {return health > 0;}
     bool isStunned() {return state == STUNNED;}
+    bool isAttacking() {return state == ATTACKING;}
 
     EnemyType getType() const { return type; }
     EnemyState getState() const { return state; }
     int getHealth() const { return health; }
+    int getDamage() const { return damage; }
 };
 
 #endif

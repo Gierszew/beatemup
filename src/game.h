@@ -50,7 +50,9 @@ class Game {
     void spawnEnemies();
     void updateEnemies(float dt);
     void renderEnemies();
+
     void checkCollisions();
+    void resolveCollisions(Player* player, Enemy* enemy);
     ~Game();
 
 };
