@@ -18,13 +18,13 @@ FontRenderer::~FontRenderer() {
 
 bool FontRenderer::load(SDL_Renderer* renderer, const char* filename) {
     if (isLoaded) {
-        printf("Font already loaded.\n");
+        // printf("Font already loaded.\n");
         return true;
     }
 
     SDL_Surface* surface = SDL_LoadBMP(filename);
     if (!surface) {
-        printf("Failed to load font bitmap: %s\n", SDL_GetError());
+        // printf("Failed to load font bitmap: %s\n", SDL_GetError());
         return false;
     }
 
@@ -32,7 +32,7 @@ bool FontRenderer::load(SDL_Renderer* renderer, const char* filename) {
     SDL_FreeSurface(surface);
 
     if (!texture) {
-        printf("Failed to create font texture: %s\n", SDL_GetError());
+        // printf("Failed to create font texture: %s\n", SDL_GetError());
         return false;
     }
     isLoaded = true;

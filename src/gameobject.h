@@ -17,6 +17,7 @@ class GameObject {
     void draw(SDL_Renderer* renderer, Camera* camera, bool flip = false);
     void update();
     void clean();
+    void drawDebug(SDL_Renderer* renderer, Camera* camera);
 
     virtual Hitbox getBodyHitbox() const {
         return bodyHitbox;

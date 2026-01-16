@@ -53,6 +53,8 @@ class Game {
 
     void checkCollisions();
     void resolveCollisions(Player* player, Enemy* enemy);
+    
+    void drawComboUI();
     ~Game();
 
 };

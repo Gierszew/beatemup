@@ -46,7 +46,7 @@ bool Game::init(const char* title, int width, int height) {
     this->worldBounds = WorldBounds(0, 0, worldWidth, worldHeight);
 
     if (!font.load(renderer, "assets/cs8x8.bmp")) {
-        printf("Failed to load font renderer.\n");
+        // printf("Failed to load font renderer.\n");
     }
 
     startTime = SDL_GetTicks();
@@ -114,7 +114,13 @@ void Game::handleEvents() {
         if (event.type == SDL_QUIT) {
             isRunning = false;
         }
-        else if (event.type == SDL_KEYDOWN) {
+        else if (event.type == SDL_KEYDOWN && event.key.repeat == 0) {
+            InputKey key = InputBuffer::scancodeToInput((SDL_Scancode)event.key.keysym.scancode);
+            if (key != KEY_NONE) {
+                float currentTime = (SDL_GetTicks() - startTime) / 1000.0f;
+                player->getInputBuffer()->addInput(key, currentTime);
+                player->checkCombos(currentTime);
+            }
             switch (event.key.keysym.sym) {
                 case SDLK_ESCAPE:
                     isRunning = false;
@@ -125,6 +131,9 @@ void Game::handleEvents() {
             }
         }
     }
+
+    /* const Uint8* keystate = SDL_GetKeyboardState(NULL);
+    player->handleComboInput(keystate, SDL_GetTicks() - startTime); */
 }
 
 void Game::update() {
@@ -146,9 +155,9 @@ void Game::update() {
     updateEnemies(deltaTime);
     checkCollisions();
 
-    printf("Player: scale=%.1f world=(%.0f,%.0f) size=%dx%d center=(%d,%d)\n",
+    /* printf("Player: scale=%.1f world=(%.0f,%.0f) size=%dx%d center=(%d,%d)\n",
            player->scale, player->x, player->y, player->width, player->height,
-           visualCenterX, visualCenterY);
+           visualCenterX, visualCenterY); */
 }
 
 void Game::initBackground() {
@@ -178,7 +187,7 @@ void Game::spawnEnemies() {
     enemies[1]->init(RANGED, 800, 400, player);
     enemies[1]->setTexture(renderer);
 
-    printf("Spawned %d enemies.\n", enemyCount);
+    // printf("Spawned %d enemies.\n", enemyCount);
 }
 
 void Game::updateEnemies(float dt) {
@@ -193,9 +202,9 @@ void Game::renderEnemies() {
     for (int i = 0; i < enemyCount; i++) {
         if (enemies[i] && enemies[i]->isAlive()) {
             enemies[i]->draw(renderer, camera);
-            printf("Rendering Enemy %d at (%.1f, %.1f)\n", i, enemies[i]->x, enemies[i]->y);
+            // printf("Rendering Enemy %d at (%.1f, %.1f)\n", i, enemies[i]->x, enemies[i]->y);
         } else {
-            printf("Enemy %d is not alive, skipping render.\n", i);
+            // printf("Enemy %d is not alive, skipping render.\n", i);
         }
     }
 }
@@ -208,7 +217,7 @@ void Game::checkCollisions() {
                 Hitbox enemyBody = enemies[i]->getBodyHitbox();
 
                 if (playerAttack.collidesWith(player->x, player->y, enemyBody, enemies[i]->x, enemies[i]->y)) {
-                    printf("Player attack hit Enemy %d!\n", i);
+                    // printf("Player attack hit Enemy %d!\n", i);
                     enemies[i]->takeDamage(4);  // PLAYER'S ATTACK DAMAGE
                 }
             }
@@ -221,7 +230,7 @@ void Game::checkCollisions() {
             Hitbox playerBody = player->getBodyHitbox();
 
             if (enemyAttack.collidesWith(enemies[i]->x, enemies[i]->y, playerBody, player->x, player->y)) {
-                printf("Enemy %d attack hit Player!\n", i);
+                // printf("Enemy %d attack hit Player!\n", i);
                 //player->takeDamage(enemies[i]->getDamage());
             }
         }
@@ -274,8 +283,8 @@ void Game::resolveCollisions(Player* player, Enemy* enemy) {
             enemy->y - dy * overlap * 0.5f
         );
         
-        printf("Collision resolved: player moved by (%.1f, %.1f)\n", 
-               dx * overlap, dy * overlap);
+        /* printf("Collision resolved: player moved by (%.1f, %.1f)\n", 
+               dx * overlap, dy * overlap); */
     }
 }
 
@@ -292,8 +301,37 @@ void Game::render() {
     player->draw(renderer, camera);
     renderEnemies();
 
+    drawComboUI();
+
     renderHUD();
     SDL_RenderPresent(renderer);
+}
+
+void Game::drawComboUI() {
+    ComboType currentCombo = player->getCurrentCombo();
+
+    if (currentCombo != COMBO_NONE) {
+        char comboText[64];
+        snprintf(comboText, sizeof(comboText), "COMBO: %s", 
+                 player->getComboName(currentCombo));
+        
+        // Rysuj z efektem (większa czcionka, kolor)
+        font.drawScaled(renderer, 400, 50, comboText, 2);
+        
+        // Efekt wizualny dla combo
+        SDL_Rect comboRect = {350, 45, 300, 60};
+        SDL_SetRenderDrawColor(renderer, 255, 255, 0, 100);
+        SDL_RenderFillRect(renderer, &comboRect);
+        SDL_SetRenderDrawColor(renderer, 255, 215, 0, 255);
+        SDL_RenderDrawRect(renderer, &comboRect);
+    }
+
+    if (player->getComboMultiplier() > 1.0f) {
+            char multiplierText[32];
+            snprintf(multiplierText, sizeof(multiplierText), "x%.1f", 
+                     player->getComboMultiplier());
+            font.drawScaled(renderer, 500, 100, multiplierText, 3);
+    }
 }
 
 Game::~Game() {

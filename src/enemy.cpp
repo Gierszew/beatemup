@@ -51,8 +51,19 @@ void Enemy::init(EnemyType type, float x, float y, Player* target) {
 void Enemy::update(float dt) {
     if (!isAlive() || !target) return;
 
-    printf("Enemy Update: type=%d state=%d pos=(%.1f,%.1f) target=(%.1f,%.1f)\n",
-           type, state, x, y, target->x, target->y);
+    if (this == nullptr) {
+            // printf("[ERROR] this is nullptr!\n");
+            return;
+        }
+        
+        // Sprawdź czy vtable jest poprawna
+        if (*((void**)this) == nullptr) {
+            // printf("[ERROR] vtable corrupted!\n");
+            return;
+        }
+
+    /* printf("Enemy Update: type=%d state=%d pos=(%.1f,%.1f) target=(%.1f,%.1f)\n",
+           type, state, x, y, target->x, target->y); */
 
     switch(state) {
         case STUNNED:
@@ -72,6 +83,26 @@ void Enemy::update(float dt) {
             break;
     }
 
+    if (!isAlive()) {
+        //printf("[Enemy::update] Not alive, skipping\n");
+        return;
+    }
+    
+    // SPRAWDŹ CZY target NIE JEST NULL!
+    if (!target) {
+        // printf("[Enemy::update] ERROR: target is NULL!\n");
+        return;
+    }
+
+    if (state == STUNNED) {
+        stunTimer -= dt;
+        if (stunTimer <= 0) {
+            state = PATROLLING;
+        }
+        // printf("[Enemy::update] Stunned, timer=%.2f\n", stunTimer);
+        return;
+    }
+
     static float animTimer = 0;
     animTimer += dt;
     if (animTimer > 0.2f) {
@@ -88,7 +119,7 @@ void Enemy::updateChaser(float dt) {
     // Jeśli blisko → atakuj
     if (distance < attackRange) {
         state = ATTACKING;
-        printf("Chaser ATTACKING player!\n");
+        // printf("Chaser ATTACKING player!\n");
         // Tutaj: zadaj obrażenia graczowi
         // target->takeDamage(damage);
         attackCooldown = 1.0f;
@@ -119,7 +150,7 @@ void Enemy::updateRanged(float dt) {
         // Sprawdź czy jest w linii poziomej z graczem
         if (fabs(dy) < 50.0f) {
             state = CHASING;
-            printf("Ranged lining up for charge!\n");
+            // printf("Ranged lining up for charge!\n");
         } else {
             // Porusz się w pionie aby się wyrównać
             if (dy > 0) y += speed * dt;
@@ -138,7 +169,7 @@ void Enemy::updateRanged(float dt) {
         
         // Jeśli trafi w gracza podczas szarży
         if (distance < attackRange) {
-            printf("Ranged CHARGED into player!\n");
+            // printf("Ranged CHARGED into player!\n");
             // target->takeDamage(damage);
             state = PATROLLING;
         }
@@ -152,11 +183,11 @@ void Enemy::takeDamage(int damage) {
     
     if (health <= 0) {
         state = DEAD;
-        printf("Enemy DEFEATED!\n");
+        // printf("Enemy DEFEATED!\n");
     } else {
         state = STUNNED;
         stunTimer = STUN_TIME;
-        printf("Enemy STUNNED for %.1fs (HP: %d)\n", STUN_TIME, health);
+        // printf("Enemy STUNNED for %.1fs (HP: %d)\n", STUN_TIME, health);
     }
 }
 
