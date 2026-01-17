@@ -43,8 +43,15 @@ class InputBuffer {
     void debugPrint(float currentTime);
     void addKeyPress(InputKey key, float currentTime);
     void keyReleased(InputKey key);
+    const char* keyToString(InputKey key);
     
     static InputKey scancodeToInput(SDL_Scancode scancode);
+
+    InputEvent getEvent(int index) const {
+        int idx = (head - index + MAX_BUFFER_SIZE) % MAX_BUFFER_SIZE;
+        return buffer[idx];
+    }
+    int getBufferSize() const { return size; }
 };
 
 #endif

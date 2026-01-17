@@ -18,13 +18,11 @@ FontRenderer::~FontRenderer() {
 
 bool FontRenderer::load(SDL_Renderer* renderer, const char* filename) {
     if (isLoaded) {
-        // printf("Font already loaded.\n");
         return true;
     }
 
     SDL_Surface* surface = SDL_LoadBMP(filename);
     if (!surface) {
-        // printf("Failed to load font bitmap: %s\n", SDL_GetError());
         return false;
     }
 
@@ -32,7 +30,6 @@ bool FontRenderer::load(SDL_Renderer* renderer, const char* filename) {
     SDL_FreeSurface(surface);
 
     if (!texture) {
-        // printf("Failed to create font texture: %s\n", SDL_GetError());
         return false;
     }
     isLoaded = true;
@@ -46,30 +43,25 @@ void FontRenderer::draw(SDL_Renderer* renderer, int x, int y, const char* text) 
 void FontRenderer::drawScaled(SDL_Renderer* renderer, int x, int y, const char* text, int scale) {
     if (!isLoaded || !texture || !text) return;
 
-    int currentX = x;
-    int scaledW = charWidth * scale;
-    int scaledH = charHeight * scale;
+    int px, py, c;
+    SDL_Rect s, d;
+    s.w = charWidth;
+    s.h = charHeight;
+    d.w = charWidth * scale;
+    d.h = charHeight * scale;
 
-    for (int i = 0; text[i] != '\0'; i++) {
-        unsigned char c = (unsigned char)text[i];
+    while (*text) {
+        c = *text & 255;
+        px = (c % charsPerRow) * charWidth;
+        py = (c / charsPerRow) * charHeight;
 
-        if (c < 32 || c > 126) {
-            currentX += scaledW; // Zostaw miejsce
-            continue;
-        }
-        
-        int start_x = 0;
-        int start_y = 3;
-        int digit = c - '0';
-        int srcX = (start_x + digit) * charWidth;
-        int srcY = (start_y) * charHeight;
-        
-        SDL_Rect srcRect = {srcX, srcY, charWidth, charHeight};
-        SDL_Rect destRect = {currentX, y, scaledW, scaledH};
-        
-        SDL_RenderCopy(renderer, texture, &srcRect, &destRect);
-        
-        currentX += scaledW;
+        s.x = px;
+        s.y = py;
+        d.x = x;
+        d.y = y;
+        SDL_RenderCopy(renderer, texture, &s, &d);
+        x += charWidth * scale;
+        text++;
     }
 }
 

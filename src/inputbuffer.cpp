@@ -13,38 +13,26 @@ InputBuffer::InputBuffer(float maxTime) {
 void InputBuffer::addInput(InputKey key, float currentTime) {
     if (key == KEY_NONE) return;
     
-    // 1. Sprawdź czy to nie jest to samo wciśnięcie co ostatnie
     if (size > 0) {
         int lastIdx = head;
         if (buffer[lastIdx].key == key) {
-            // To samo wciśnięcie - sprawdź czas
             float timeSinceLast = currentTime - buffer[lastIdx].timestamp;
-            if (timeSinceLast < 0.001f) {  // 50ms debounce
-                printf("[InputBuffer] Debouncing: same key pressed too soon (%.3fs)\n", 
-                       timeSinceLast);
-                return;  // Ignoruj zbyt szybkie powtórzenia
+            if (timeSinceLast < 0.001f) {
+                return;
             }
         }
     }
     
-    // 2. Dodaj nowe wejście
     head = (head + 1) % MAX_BUFFER_SIZE;
     buffer[head] = {key, currentTime, false};
     
     if (size < MAX_BUFFER_SIZE) {
         size++;
-    } else {
-        // Bufer pełny - nadpisz najstarszy (circular buffer)
-        printf("[InputBuffer] Buffer full, overwriting oldest\n");
     }
-    
-    printf("[InputBuffer] Added %d (size: %d/%d)\n", key, size, MAX_BUFFER_SIZE);
 }
 
 bool InputBuffer::checkSequence(const InputKey* sequence, int length, float currentTime) {
     if (length == 0 || size < length) return false;
-    
-    // Sprawdź od najnowszego do najstarszego
     int seqIndex = length - 1;
     
     for (int i = 0; i < size && seqIndex >= 0; i++) {
@@ -52,22 +40,18 @@ bool InputBuffer::checkSequence(const InputKey* sequence, int length, float curr
         
         if (buffer[idx].consumed) continue;
         
-        // Sprawdź czy wejście nie jest za stare
         if (currentTime - buffer[idx].timestamp > maxComboTime) {
             continue;
         }
         
-        // Sprawdź czy pasuje do sekwencji
         if (buffer[idx].key == sequence[seqIndex]) {
             seqIndex--;
         } else {
-            // Sekwencja przerwana - zaczynamy od nowa
             seqIndex = length - 1;
         }
     }
     
     if (seqIndex < 0) {
-        // Znaleziono sekwencję! Oznacz użyte wejścia
         int found = 0;
         for (int i = 0; i < size && found < length; i++) {
             int idx = (head - i + MAX_BUFFER_SIZE) % MAX_BUFFER_SIZE;
@@ -86,7 +70,7 @@ void InputBuffer::clearOldInputs(float currentTime) {
     for (int i = 0; i < size; i++) {
         int idx = (head - i + MAX_BUFFER_SIZE) % MAX_BUFFER_SIZE;
         if (currentTime - buffer[idx].timestamp > maxComboTime) {
-            buffer[idx].consumed = true;  // Oznacz jako "wygasłe"
+            buffer[idx].consumed = true;
         }
     }
 }
@@ -98,8 +82,6 @@ void InputBuffer::clear() {
 }
 
 void InputBuffer::debugPrint(float currentTime) {
-    printf("InputBuffer [%d/%d]: ", size, MAX_BUFFER_SIZE);
-    
     for (int i = 0; i < size; i++) {
         int idx = (head - i + MAX_BUFFER_SIZE) % MAX_BUFFER_SIZE;
         const char* keyName = "?";
@@ -115,13 +97,19 @@ void InputBuffer::debugPrint(float currentTime) {
             default: keyName = "NONE"; break;
         }
         
-        printf("%s(%.1fs%s) ", keyName, 
-               currentTime - buffer[idx].timestamp,
-               buffer[idx].consumed ? "*" : "");
-        
-        if (i < size - 1) printf("<- ");
     }
-    printf("\n");
+}
+
+const char* InputBuffer::keyToString(InputKey key) {
+    switch(key) {
+        case KEY_UP: return "UP";
+        case KEY_DOWN: return "DOWN";
+        case KEY_LEFT: return "LEFT";
+        case KEY_RIGHT: return "RIGHT";
+        case KEY_ATTACK_LIGHT: return "LIGHT";
+        case KEY_ATTACK_HEAVY: return "HEAVY";
+        default: return "UNKNOWN";
+    }
 }
 
 InputKey InputBuffer::scancodeToInput(SDL_Scancode scancode) {
@@ -164,7 +152,6 @@ bool InputBuffer::checkDoubleTap(InputKey key, float currentTime, float maxTimeB
         float timeBetween = second.timestamp - first.timestamp;
         
         if (timeBetween > 0 && timeBetween <= maxTimeBetween) {
-            // Oznacz jako użyte
             for (int i = 0; i < size; i++) {
                 int idx = (head - i + MAX_BUFFER_SIZE) % MAX_BUFFER_SIZE;
                 if (buffer[idx].key == key && 
@@ -182,25 +169,14 @@ bool InputBuffer::checkDoubleTap(InputKey key, float currentTime, float maxTimeB
 
 bool InputBuffer::checkDirectionalDash(float currentTime, InputKey* outDirection) {
     // Sprawdź dash w lewo (←←)
-    if (checkDoubleTap(KEY_LEFT, currentTime, 0.3f)) {
+    if (checkDoubleTap(KEY_LEFT, currentTime, 0.1f)) {
         if (outDirection) *outDirection = KEY_LEFT;
         return true;
     }
     
     // Sprawdź dash w prawo (→→)
-    if (checkDoubleTap(KEY_RIGHT, currentTime, 0.3f)) {
+    if (checkDoubleTap(KEY_RIGHT, currentTime, 0.1f)) {
         if (outDirection) *outDirection = KEY_RIGHT;
-        return true;
-    }
-    
-    // Sprawdź dash w górę/dół (opcjonalnie)
-    if (checkDoubleTap(KEY_UP, currentTime, 0.3f)) {
-        if (outDirection) *outDirection = KEY_UP;
-        return true;
-    }
-    
-    if (checkDoubleTap(KEY_DOWN, currentTime, 0.3f)) {
-        if (outDirection) *outDirection = KEY_DOWN;
         return true;
     }
     
@@ -216,16 +192,12 @@ void InputBuffer::addKeyPress(InputKey key, float currentTime) {
     
     int keyIndex = (int)key;
     
-    // Jeśli klawisz już wciśnięty - ignoruj
     if (keyPressed[keyIndex]) {
         return;
     }
-    
-    // Oznacz jako wciśnięty i dodaj do bufora
+
     keyPressed[keyIndex] = true;
     addInput(key, currentTime);
-    
-    printf("[KeyPress] %d registered\n", key);
 }
 
 void InputBuffer::keyReleased(InputKey key) {

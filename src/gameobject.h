@@ -12,9 +12,12 @@ class GameObject {
 
     public:
     GameObject();
+
+    void load(float x, float y, int width, int height);
     void load(float x, float y, int width, int height, char* textureId);
     void setTexture(SDL_Renderer* renderer);
     void draw(SDL_Renderer* renderer, Camera* camera, bool flip = false);
+    void drawWithoutTexture(SDL_Renderer* renderer, Camera* camera);
     void update();
     void clean();
     void drawDebug(SDL_Renderer* renderer, Camera* camera);
@@ -29,6 +32,8 @@ class GameObject {
 
     void setBodyHitbox(float offsetX, float offsetY, float w, float h) {
         bodyHitbox = Hitbox(offsetX, offsetY, w, h);
+        printf("DEBUG: setBodyHitbox offset=(%.0f,%.0f) size=(%.0fx%.0f) for object at (%.0f,%.0f)\n",
+           offsetX, offsetY, w, h, x, y);
     }
 
     void setAttackHitbox(float offsetX, float offsetY, float w, float h) {
@@ -68,6 +73,7 @@ class GameObject {
     float scale;
 
     bool movingLeft;
+    bool alreadyDamaged;
 };
 
 #endif

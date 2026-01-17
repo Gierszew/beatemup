@@ -16,7 +16,7 @@ enum PlayerState {
 };
 
 enum ComboType {
-    COMBO_NONE = 0,
+    COMBO_NONE = -1,
     COMBO_TRIPLE_LIGHT,      // L-L-L
     COMBO_TRIPLE_HEAVY,      // H-H-H  
     COMBO_MIXED,             // L-H-L
@@ -53,7 +53,9 @@ class Player : public GameObject {
     float dashTimer;
     float dashCooldown;
     float dashOriginalSpeed;
+    float invincibilityFrames;
     int dashDirection;
+    const int MAX_HP = 100;
     
     bool showDebugInfo;
     static const ComboDefinition comboDefinitions[MAX_COMBOS];
@@ -65,7 +67,7 @@ class Player : public GameObject {
 
     void load(int x, int y, int width, int height, char* textureId);
     void setTexture(SDL_Renderer* renderer);
-    void draw(SDL_Renderer* renderer, Camera* camera);
+    void draw(SDL_Renderer* renderer, Camera* camera, bool debug);
     void update(float dt);
     void clean();
     void handleInput(float dt);
@@ -87,6 +89,10 @@ class Player : public GameObject {
         return state == ATTACKING_LIGHT || state == ATTACKING_HEAVY;
     }
 
+    float getAttackTimer() const {
+        return attackTimer;
+    }
+
     ComboType getCurrentCombo() const {
         return currentCombo;
     }
@@ -104,6 +110,7 @@ class Player : public GameObject {
 
     PlayerState state;
     int hp;
+    int score;
 
 };
 

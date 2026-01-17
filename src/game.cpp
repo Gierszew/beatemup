@@ -7,6 +7,8 @@ Game::Game() {
     camera = NULL;
     background = nullptr;
     layerCount = 0;
+    playStartTime = 0;
+    debugMode = false;
 }
 
 bool Game::init(const char* title, int width, int height) {
@@ -36,7 +38,7 @@ bool Game::init(const char* title, int width, int height) {
     initBackground();
     
     player = new Player();
-    player->load(1, worldHeight, 32, 64, (char*)"assets/mage.bmp");
+    player->load(1, 200, 32, 64, (char*)"assets/mage.bmp");
     player->setTexture(renderer);
 
     camera = new Camera(width, height);
@@ -46,12 +48,15 @@ bool Game::init(const char* title, int width, int height) {
     this->worldBounds = WorldBounds(0, 0, worldWidth, worldHeight);
 
     if (!font.load(renderer, "assets/cs8x8.bmp")) {
-        // printf("Failed to load font renderer.\n");
+        printf("Failed to load font renderer.\n");
     }
 
     startTime = SDL_GetTicks();
     lastTick = SDL_GetTicks();
     deltaTime = 0.0f;
+
+    menu = new Menu(renderer, &font);
+    currentState = STATE_MENU;
 
     isRunning = true;
     return true;
@@ -62,47 +67,56 @@ SDL_Texture* Game::loadTexture(const char* filePath) {
 }
 
 void Game::resetGame() {
-    player->x = 100;
-    player->y = 100;
+    player->hp = 100;
+    player->x = 1;
+    player->y = 200;
+    player->state = IDLE;
+    player->score = 0;
+    player->getInputBuffer()->clear();
     startTime = SDL_GetTicks();
+    playStartTime = SDL_GetTicks();
+    lastTick = SDL_GetTicks();
     deltaTime = 0.0f;
+    currentLevel = 1;
+    loadLevel(currentLevel);
 }
 
 void Game::renderHUD() {
     if (!font.loaded()) return;
     
-    // 1. Czas gry
-    Uint32 elapsed = SDL_GetTicks() - startTime;
+    Uint32 elapsed = SDL_GetTicks() - playStartTime;
     char timeStr[32];
     sprintf(timeStr, "TIME: %02d:%02d", elapsed/60000, (elapsed/1000)%60);
     
-    // 2. Wymagania
     char reqStr[64];
-    sprintf(reqStr, "REQ: 1-3[OK] 4[HUD]");
+    sprintf(reqStr, "REQ: 1-5, A-G");
     
-    // 3. Pozycja (debug)
     char posStr[48];
     sprintf(posStr, "POS: %.0f,%.0f", player->x, player->y);
+
+    char scoreStr[32];
+    sprintf(scoreStr, "SCORE: %d", player->score);
     
-    // 4. Rysuj (SCREEN coordinates!)
     SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
     font.drawScaled(renderer, 10, 10, timeStr, 2);
     
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    font.drawScaled(renderer, 10, 40, reqStr, 1);
+    font.drawScaled(renderer, 10, 40, reqStr, 2);
     
     SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
     font.drawScaled(renderer, 10, 60, posStr, 1);
+
+    SDL_SetRenderDrawColor(renderer, 0, 215, 0, 255);
+    font.drawScaled(renderer, 10, 100, scoreStr, 1);
     
-    // 5. Pasek życia (przykład)
-    char hpStr[32] = "HP: [====    ]";
-    SDL_SetRenderDrawColor(renderer, 255, 50, 50, 255);
-    font.drawScaled(renderer, width - 150, 10, hpStr, 2);
+    SDL_Rect healthBar = { (int)((player->x) - camera->getViewPort().x), (int)(player->y - camera->getViewPort().y), player->hp * 2, 20 };
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    SDL_RenderFillRect(renderer, &healthBar);
 
     char attackStr[64];
-    const char* stateNames[] = {"IDLE", "WALKING", "LIGHT ATK", "HEAVY ATK", "HURT"};
+    const char* stateNames[] = {"IDLE", "WALKING", "LIGHT ATK", "HEAVY ATK", "HURT", "DASHING"};
     
-    sprintf(attackStr, "ATK: %s (J/K)", stateNames[player->state]);
+    sprintf(attackStr, "STATE: %s", stateNames[player->state]);
     
     SDL_SetRenderDrawColor(renderer, 255, 200, 0, 255);
     font.drawScaled(renderer, 10, 80, attackStr, 1);
@@ -115,29 +129,72 @@ void Game::handleEvents() {
             isRunning = false;
         }
         else if (event.type == SDL_KEYDOWN && event.key.repeat == 0) {
-            InputKey key = InputBuffer::scancodeToInput((SDL_Scancode)event.key.keysym.scancode);
-            if (key != KEY_NONE) {
-                float currentTime = (SDL_GetTicks() - startTime) / 1000.0f;
-                player->getInputBuffer()->addInput(key, currentTime);
-                player->checkCombos(currentTime);
-            }
-            switch (event.key.keysym.sym) {
-                case SDLK_ESCAPE:
+            if (currentState == STATE_MENU) {
+                if (event.key.keysym.sym == SDLK_UP) {
+                    menu->previousOption();
+                }
+                else if (event.key.keysym.sym == SDLK_DOWN) {
+                    menu->nextOption();
+                }
+                else if (event.key.keysym.sym == SDLK_ESCAPE) {
                     isRunning = false;
-                    break;
-                case SDLK_n:
+                }
+                if (event.key.keysym.sym == SDLK_RETURN) {
+                    int choice = menu->getSelectedOption();
+                    if (choice == 0 || choice == 1) {
+                        currentLevel = 1;
+                    } else if (choice == 2) {
+                        currentLevel = 2;
+                    }
+
+                    loadLevel(currentLevel);
+                    playStartTime = SDL_GetTicks();
+                    currentState = STATE_PLAYING;
+                }
+                continue;
+            }
+
+            else if (currentState == STATE_GAMEOVER) {
+                if (event.key.keysym.sym == SDLK_m) {
+                    currentState = STATE_MENU;
+                } else if (event.key.keysym.sym == SDLK_r) {
+                    printf("Restarting game...\n");
                     resetGame();
-                    break;
+                    currentState = STATE_PLAYING;
+                }
+                continue;
+            } else if (currentState == STATE_PLAYING) {
+                InputKey key = InputBuffer::scancodeToInput((SDL_Scancode)event.key.keysym.scancode);
+                if (key != KEY_NONE) {
+                    float currentTime = (SDL_GetTicks() - startTime) / 1000.0f;
+                    player->getInputBuffer()->addInput(key, currentTime);
+                    player->checkCombos(currentTime);
+                }
+                switch (event.key.keysym.sym) {
+                    case SDLK_ESCAPE:
+                        isRunning = false;
+                        break;
+                    case SDLK_n:
+                        resetGame();
+                        break;
+                    case SDLK_F3:
+                        debugMode = !debugMode;
+                        break;
+                }
             }
         }
     }
-
-    /* const Uint8* keystate = SDL_GetKeyboardState(NULL);
-    player->handleComboInput(keystate, SDL_GetTicks() - startTime); */
 }
 
 void Game::update() {
-    // Update game logic here
+    if (currentState != STATE_PLAYING) {
+        return;
+    }
+
+    if (player->hp <= 0) {
+        currentState = STATE_GAMEOVER;
+    }
+
     Uint32 currentTick = SDL_GetTicks();
     deltaTime = (currentTick - lastTick) / 1000.0f;
     lastTick = currentTick;
@@ -150,18 +207,73 @@ void Game::update() {
     camera->setZoom(requiredZoom);
     int visualCenterX = (int)(player->x + player->width / 2);
     int visualCenterY = (int)(player->y + player->height / 2);
-    camera->update(visualCenterX, visualCenterY, worldWidth, worldHeight);
+    camera->update(visualCenterX, visualCenterY, worldBounds.right, worldBounds.bottom);
 
     updateEnemies(deltaTime);
     checkCollisions();
 
-    /* printf("Player: scale=%.1f world=(%.0f,%.0f) size=%dx%d center=(%d,%d)\n",
-           player->scale, player->x, player->y, player->width, player->height,
-           visualCenterX, visualCenterY); */
+    bool allDead = true;
+    for (int i = 0; i < enemyCount; i++) {
+        if (enemies[i] && enemies[i]->isAlive()) {
+            allDead = false;
+            break;
+        }
+    }
+
+    if (allDead) {
+        if (currentLevel < MAX_LEVELS) {
+            currentLevel++;
+            loadLevel(currentLevel);
+            printf("Loading level %d\n", currentLevel);
+        } else {
+            currentState = STATE_MENU;
+            currentLevel = 1; 
+        }
+    }
+}
+
+void Game::renderDebugInfo() {
+    if (!debugMode) return;
+
+    SDL_Rect debugRect = { 500, 10, 280, 220 };
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+    SDL_RenderFillRect(renderer, &debugRect);
+
+    const char* stateNames[] = {"IDLE", "WALKING", "LIGHT ATK", "HEAVY ATK", "HURT", "DASHING", "DEAD"};
+    char actionStr[64];
+    sprintf(actionStr, "ACTION: %s", stateNames[player->state]);
+    font.drawScaled(renderer, 510, 20, actionStr, 1);
+
+    font.drawScaled(renderer, 510, 45, "INPUT BUFFER (Newest first):", 1);
+    
+    int bufSize = player->getInputBuffer()->getBufferSize();
+    int yOffset = 70;
+
+    for (int i = 0; i < bufSize; i++) {
+        InputEvent ev = player->getInputBuffer()->getEvent(i);
+        
+        char inputStr[64];
+        const char* keyName = player->getInputBuffer()->keyToString(ev.key);
+        
+        sprintf(inputStr, "[%.2f] %s %s", ev.timestamp, keyName, ev.consumed ? "*" : "");
+        
+        if (ev.consumed) {
+            SDL_SetTextureColorMod(font.getTexture(), 100, 100, 100);
+        } else {
+            SDL_SetTextureColorMod(font.getTexture(), 255, 255, 0);
+        }
+
+        font.drawScaled(renderer, 515, yOffset, inputStr, 1);
+        yOffset += 15;
+    }
+    
+    SDL_SetTextureColorMod(font.getTexture(), 255, 255, 255);
 }
 
 void Game::initBackground() {
     layerCount = 1;
+    backgroundLayers[0] = BackgroundLayer(worldBounds.right, worldBounds.bottom, false);
     backgroundLayers[0].load(renderer, (char*)"assets/bg.bmp", 0.05f, false);
 }
 
@@ -173,23 +285,31 @@ void Game::renderBackground() {
     }
 }
 
-void Game::spawnEnemies() {
-    maxEnemies = 5;
-    enemyCount = 2;
-
-    enemies = (Enemy**)malloc(sizeof(Enemy*) * maxEnemies);
-
-    enemies[0] = new Enemy();
-    enemies[0]->init(CHASER, 400, 400, player);
-    enemies[0]->setTexture(renderer);
-
-    enemies[1] = new Enemy();
-    enemies[1]->init(RANGED, 800, 400, player);
-    enemies[1]->setTexture(renderer);
-
-    // printf("Spawned %d enemies.\n", enemyCount);
+void Game::loadLevel(int levelNum) {
+    if (enemies) {
+        for (int i = 0; i < enemyCount; i++) delete enemies[i];
+        free(enemies);
+        enemies = nullptr;
+    }
+    char levelPath[64];
+    sprintf(levelPath, "levels/level%d.txt", levelNum);
+    LevelLoader loader;
+    if (!loader.load(levelPath, this)) {
+        printf("Błąd wczytywania poziomu: %s\n", levelPath);
+        currentState = STATE_MENU;
+    }
+    
+    player->x = 100;
+    player->y = 200;
 }
 
+void Game::spawnEnemies() {
+    LevelLoader loader;
+    if (!loader.load("levels/level1.txt", this)) {
+        printf("BŁĄD: Nie udalo sie wczytac poziomu!\n");
+        enemyCount = 0; 
+    }
+}
 void Game::updateEnemies(float dt) {
     for (int i = 0; i < enemyCount; i++) {
         if (enemies[i] && enemies[i]->isAlive()) {
@@ -201,24 +321,26 @@ void Game::updateEnemies(float dt) {
 void Game::renderEnemies() {
     for (int i = 0; i < enemyCount; i++) {
         if (enemies[i] && enemies[i]->isAlive()) {
-            enemies[i]->draw(renderer, camera);
-            // printf("Rendering Enemy %d at (%.1f, %.1f)\n", i, enemies[i]->x, enemies[i]->y);
-        } else {
-            // printf("Enemy %d is not alive, skipping render.\n", i);
+            enemies[i]->draw(renderer, camera, debugMode);
+            char hpStr[16];
+            sprintf(hpStr, "HP: %d", enemies[i]->getHealth());
+            font.drawScaled(renderer, (int)(enemies[i]->x - camera->getViewPort().x), 
+                            (int)(enemies[i]->y - camera->getViewPort().y - 20), hpStr, 1);
         }
     }
 }
 
 void Game::checkCollisions() {
+    float yTolerance = 200.0f;
+
     if (player->isAttacking()) {
         for (int i = 0; i < enemyCount; i++) {
             if (enemies[i]->isAlive()) {
                 Hitbox playerAttack = player->getAttackHitbox();
                 Hitbox enemyBody = enemies[i]->getBodyHitbox();
 
-                if (playerAttack.collidesWith(player->x, player->y, enemyBody, enemies[i]->x, enemies[i]->y)) {
-                    // printf("Player attack hit Enemy %d!\n", i);
-                    enemies[i]->takeDamage(4);  // PLAYER'S ATTACK DAMAGE
+                if (playerAttack.collidesWithDepth(player->x, player->y, enemyBody, enemies[i]->x, enemies[i]->y, yTolerance)) {
+                    enemies[i]->takeDamage(player->getAttackDamage());
                 }
             }
         }
@@ -230,8 +352,7 @@ void Game::checkCollisions() {
             Hitbox playerBody = player->getBodyHitbox();
 
             if (enemyAttack.collidesWith(enemies[i]->x, enemies[i]->y, playerBody, player->x, player->y)) {
-                // printf("Enemy %d attack hit Player!\n", i);
-                //player->takeDamage(enemies[i]->getDamage());
+                player->takeDamage(enemies[i]->getDamage());
             }
         }
     }
@@ -245,66 +366,73 @@ void Game::checkCollisions() {
     }
 }
 
-void Game::resolveCollisions(Player* player, Enemy* enemy) {
-    // Oblicz wektor od przeciwnika do gracza
-    float dx = player->x - enemy->x;
-    float dy = player->y - enemy->y;
+void Game::resolveCollisions(GameObject* obj1, GameObject* obj2) {
+    float dx = obj1->x - obj2->x;
+    float dy = obj1->y - obj2->y;
     
-    // Długość wektora
     float distance = sqrt(dx*dx + dy*dy);
     
     if (distance == 0) {
-        // Jeśli dokładnie w tym samym miejscu, odsuń losowo
         dx = 1.0f;
         dy = 0.0f;
         distance = 1.0f;
     }
     
-    // Normalizuj wektor
     dx /= distance;
     dy /= distance;
     
-    // Minimalna odległość między hitboxami
-    float minDistance = (player->getBodyHitbox().width/2 + enemy->getBodyHitbox().width/2) * 0.9f;
+    float minDistance = (obj1->getBodyHitbox().width/2 + obj2->getBodyHitbox().width/2) * 0.9f;
     
     if (distance < minDistance) {
-        // Oblicz potrzebne przesunięcie
         float overlap = minDistance - distance;
         
-        // Odsuń gracza
-        player->setPosition(
-            player->x + dx * overlap,
-            player->y + dy * overlap
+        obj1->setPosition(
+            obj1->x + dx * overlap,
+            obj1->y + dy * overlap
         );
         
-        // Możesz też odsunąć przeciwnika w przeciwnym kierunku
-        enemy->setPosition(
-            enemy->x - dx * overlap * 0.5f,
-            enemy->y - dy * overlap * 0.5f
+        obj2->setPosition(
+            obj2->x - dx * overlap * 0.5f,
+            obj2->y - dy * overlap * 0.5f
         );
-        
-        /* printf("Collision resolved: player moved by (%.1f, %.1f)\n", 
-               dx * overlap, dy * overlap); */
     }
 }
+
 
 void Game::render() {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
-    // Render game objects here
+    if (currentState == STATE_MENU) {
+        menu->draw();
+    } else if (currentState == STATE_GAMEOVER) {
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
+        SDL_RenderClear(renderer);
+        
+        font.drawScaled(renderer, 250, 200, "GAME OVER", 4);
+        
+        char scoreStr[32];
+        sprintf(scoreStr, "SCORE: %d", player->score);
+        font.drawScaled(renderer, 300, 300, scoreStr, 2);
+        
+        font.drawScaled(renderer, 200, 400, "PRESS R TO RESTART OR M FOR MENU", 1);
+    } else {
 
-    SDL_Rect viewPort = camera->getViewPort();
+        SDL_Rect viewPort = camera->getViewPort();
 
-    renderBackground();
-    
-    player->draw(renderer, camera);
-    renderEnemies();
+        renderBackground();
+        
+        player->draw(renderer, camera, debugMode);
+        renderEnemies();
 
-    drawComboUI();
+        drawComboUI();
 
-    renderHUD();
-    SDL_RenderPresent(renderer);
+        renderHUD();
+        if (debugMode) {
+            renderDebugInfo();
+        }
+    }
+        SDL_RenderPresent(renderer);
 }
 
 void Game::drawComboUI() {
@@ -315,10 +443,8 @@ void Game::drawComboUI() {
         snprintf(comboText, sizeof(comboText), "COMBO: %s", 
                  player->getComboName(currentCombo));
         
-        // Rysuj z efektem (większa czcionka, kolor)
         font.drawScaled(renderer, 400, 50, comboText, 2);
         
-        // Efekt wizualny dla combo
         SDL_Rect comboRect = {350, 45, 300, 60};
         SDL_SetRenderDrawColor(renderer, 255, 255, 0, 100);
         SDL_RenderFillRect(renderer, &comboRect);
@@ -335,6 +461,12 @@ void Game::drawComboUI() {
 }
 
 Game::~Game() {
+    for (int i = 0; i < enemyCount; i++) {
+        if (enemies[i]) delete enemies[i];
+    }
+
+    if (enemies) free(enemies);
+
     SDL_DestroyTexture(background);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

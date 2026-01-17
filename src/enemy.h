@@ -30,24 +30,29 @@ class Enemy : public GameObject {
     float attackCooldown;
     float stunTimer;
     float scale;
+    float animTimer;
+    float attackTimer;
+    float invincibilityFrames;
 
     void updateChaser(float dt);
     void updateRanged(float dt);
+    void attackPlayer();
 
     const float CHASER_SPEED = 200.0f;
     const float RANGED_SPEED = 150.0f;
     const float CHARGE_SPEED = 400.0f;
     const float ATTACK_DISTANCE = 100.0f;
     const float STUN_TIME = 0.5f;
-    const int MAX_HEALTH = 3;
+    const int MAX_HEALTH = 10;
 
     public:
     Enemy();
     void init(EnemyType type, float x, float y, Player* target);
     void update(float dt);
-    void draw(SDL_Renderer* renderer, Camera* camera);
+    void draw(SDL_Renderer* renderer, Camera* camera, bool debug);
 
-    void takeDamage(int damage);
+    void takeDamage(int damage)
+    ;
     bool isAlive() {return health > 0;}
     bool isStunned() {return state == STUNNED;}
     bool isAttacking() {return state == ATTACKING;}

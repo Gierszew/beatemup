@@ -20,6 +20,7 @@ class FontRenderer {
     void drawScaled(SDL_Renderer* renderer, int x, int y, const char* text, int scale);
     bool loaded() { return isLoaded; }
     int textWidth(const char* text, int scale = 1);
+    SDL_Texture* getTexture() { return texture; }
 };
 
 #endif

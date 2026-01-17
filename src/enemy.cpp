@@ -11,6 +11,7 @@ Enemy::Enemy() {
     attackCooldown = 0.0f;
     stunTimer = 0.0f;
     scale = 5.0f;
+    animTimer = 0.0f;
 }
 
 void Enemy::init(EnemyType type, float x, float y, Player* target) {
@@ -28,15 +29,15 @@ void Enemy::init(EnemyType type, float x, float y, Player* target) {
 
     char* textureFile = (char*)"assets/ninja.bmp";
 
-    GameObject::load(x, y - (originalHeight * scale - originalHeight), originalWidth * scale, originalHeight * scale, textureFile);
+    GameObject::load(x, y, originalWidth * scale, originalHeight * scale, textureFile);
 
     if (type == CHASER) {
         speed = CHASER_SPEED;
-        damage = 2;
+        damage = 20;
         attackRange = 50.0f;
     } else if (type == RANGED) {
         speed = RANGED_SPEED;
-        damage = 1;
+        damage = 10;
         attackRange = 200.0f;
     }
 
@@ -51,19 +52,17 @@ void Enemy::init(EnemyType type, float x, float y, Player* target) {
 void Enemy::update(float dt) {
     if (!isAlive() || !target) return;
 
-    if (this == nullptr) {
-            // printf("[ERROR] this is nullptr!\n");
-            return;
-        }
-        
-        // Sprawdź czy vtable jest poprawna
-        if (*((void**)this) == nullptr) {
-            // printf("[ERROR] vtable corrupted!\n");
-            return;
-        }
+    if (invincibilityFrames > 0) invincibilityFrames -= dt;
+    if (attackCooldown > 0) attackCooldown -= dt;
 
-    /* printf("Enemy Update: type=%d state=%d pos=(%.1f,%.1f) target=(%.1f,%.1f)\n",
-           type, state, x, y, target->x, target->y); */
+    if (state == ATTACKING) {
+        attackTimer -= dt;
+        if (attackTimer <= 0) {
+            state = PATROLLING;
+            attackCooldown = 1.0f;
+            setAttackHitbox(0, 0, 0, 0);
+        }
+    }
 
     switch(state) {
         case STUNNED:
@@ -72,42 +71,37 @@ void Enemy::update(float dt) {
                 state = PATROLLING;
             }
             return;
+        case PATROLLING:
+        case CHASING:
+        currentRow = 0;
+            animTimer += dt;
+            if (animTimer > 0.2f) {
+                animTimer = 0;
+                currentFrame = (currentFrame + 1) % 4;
+            }
+            break;
+        case ATTACKING:
+        currentRow = 2;
+            static float lightAnimTimer = 0;
+            lightAnimTimer += dt;
+            if (lightAnimTimer > 0.5f / 3) {
+                lightAnimTimer = 0;
+                currentFrame = (currentFrame + 1) % 3;
+            }
     }
-
-    switch (type) {
-        case CHASER:
-            updateChaser(dt);
-            break;
-        case RANGED:
-            updateRanged(dt);
-            break;
+    if (state != STUNNED && state != ATTACKING) {
+        switch (type) {
+            case CHASER: updateChaser(dt); break;
+            case RANGED: updateRanged(dt); break;
+        }
     }
 
     if (!isAlive()) {
-        //printf("[Enemy::update] Not alive, skipping\n");
         return;
     }
     
-    // SPRAWDŹ CZY target NIE JEST NULL!
     if (!target) {
-        // printf("[Enemy::update] ERROR: target is NULL!\n");
         return;
-    }
-
-    if (state == STUNNED) {
-        stunTimer -= dt;
-        if (stunTimer <= 0) {
-            state = PATROLLING;
-        }
-        // printf("[Enemy::update] Stunned, timer=%.2f\n", stunTimer);
-        return;
-    }
-
-    static float animTimer = 0;
-    animTimer += dt;
-    if (animTimer > 0.2f) {
-        animTimer = 0;
-        currentFrame = (currentFrame + 1) % 4;  // NO POWIEDZMY ŻE JEST 4
     }
 }
 
@@ -116,15 +110,11 @@ void Enemy::updateChaser(float dt) {
     float dy = target->y - y;
     float distance = sqrt(dx*dx + dy*dy);
     
-    // Jeśli blisko → atakuj
     if (distance < attackRange) {
         state = ATTACKING;
-        // printf("Chaser ATTACKING player!\n");
-        // Tutaj: zadaj obrażenia graczowi
-        // target->takeDamage(damage);
+        attackPlayer();
         attackCooldown = 1.0f;
     } 
-    // Jeśli daleko → goni
     else if (distance < 500.0f) {
         state = CHASING;
         if (distance > 0) {
@@ -132,10 +122,8 @@ void Enemy::updateChaser(float dt) {
             y += (dy / distance) * speed * dt;
         }
     }
-    // Jeśli bardzo daleko → patroluj
     else {
         state = PATROLLING;
-        // Proste patrolowanie (możesz dodać)
         x += speed * 0.3f * dt;
     }
 }
@@ -145,53 +133,63 @@ void Enemy::updateRanged(float dt) {
     float dy = target->y - y;
     float distance = sqrt(dx*dx + dy*dy);
     
-    // RANGED: ustaw się w jednej linii, potem szarżuj
-    if (state == PATROLLING) {
-        // Sprawdź czy jest w linii poziomej z graczem
-        if (fabs(dy) < 50.0f) {
-            state = CHASING;
-            // printf("Ranged lining up for charge!\n");
-        } else {
-            // Porusz się w pionie aby się wyrównać
-            if (dy > 0) y += speed * dt;
-            else y -= speed * dt;
+    switch(state) {
+        case PATROLLING: {
+            if (fabs(dy) < 50.0f) {
+                state = CHASING;
+            } else {
+                if (dy > 0) y += speed * dt;
+                else y -= speed * dt;
+            }
+            break;
         }
+        case CHASING: {
+            if (dx > 0) x += CHARGE_SPEED * dt;
+            else x -= CHARGE_SPEED * dt;
+            
+            if (distance > 300.0f || (dx > 0 && target->x < x) || (dx < 0 && target->x > x)) {
+                state = PATROLLING;
+            }
+            
+            if (distance < attackRange) {
+                state = ATTACKING;
+                attackPlayer();
+            }
+            break;
+        }
+        default:
+            break;
     }
-    else if (state == CHASING) {
-        // Szarża!
-        if (dx > 0) x += CHARGE_SPEED * dt;
-        else x -= CHARGE_SPEED * dt;
-        
-        // Jeśli minął gracza lub zbyt daleko
-        if (distance > 300.0f || (dx > 0 && target->x < x) || (dx < 0 && target->x > x)) {
-            state = PATROLLING;
-        }
-        
-        // Jeśli trafi w gracza podczas szarży
-        if (distance < attackRange) {
-            // printf("Ranged CHARGED into player!\n");
-            // target->takeDamage(damage);
-            state = PATROLLING;
-        }
-    }
+}
+
+void Enemy::attackPlayer() {
+    state = ATTACKING;
+    attackTimer = 0.5f;
+
+    float attackWidth = 60.0f;
+    float attackHeight = height / 2.0f;
+    float attackOffsetX = movingLeft ? -attackWidth : width;
+    float attackOffsetY = height / 4.0f;
+
+    setAttackHitbox(attackOffsetX, attackOffsetY, attackWidth, attackHeight);
 }
 
 void Enemy::takeDamage(int damage) {
-    if (!isAlive()) return;
+    if (!isAlive() || invincibilityFrames > 0) return;
     
     health -= damage;
+    invincibilityFrames = 0.5f;
     
     if (health <= 0) {
         state = DEAD;
-        // printf("Enemy DEFEATED!\n");
+        target->score += 1 * target->getComboMultiplier();
     } else {
         state = STUNNED;
         stunTimer = STUN_TIME;
-        // printf("Enemy STUNNED for %.1fs (HP: %d)\n", STUN_TIME, health);
     }
 }
 
-void Enemy::draw(SDL_Renderer* renderer, Camera* camera) {
+void Enemy::draw(SDL_Renderer* renderer, Camera* camera, bool debug) {
     if (!isAlive() || !texture) return;
     
     // Kolor wg typu/stanu
@@ -205,7 +203,14 @@ void Enemy::draw(SDL_Renderer* renderer, Camera* camera) {
         SDL_SetTextureColorMod(texture, 255, 255, 100); // Żółty (stunned)
     }
     
-    GameObject::draw(renderer, camera, false);
-    // Reset koloru
-    /* SDL_SetTextureColorMod(texture, 255, 255, 255); */
+    if (target->x < x) {
+        movingLeft = true;
+    } else {
+        movingLeft = false;
+    }
+
+    GameObject::draw(renderer, camera, movingLeft);
+    if (debug) {
+        GameObject::drawDebug(renderer, camera);
+    }
 }

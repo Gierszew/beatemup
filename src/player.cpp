@@ -14,13 +14,13 @@ const ComboDefinition Player::comboDefinitions[] = {
     
     // Dash Left: ←←
     {COMBO_DASH_LEFT, "Dash Left",
-     {KEY_LEFT, KEY_LEFT}, 2, 0.0f},  // No damage, just movement
+     {KEY_LEFT, KEY_LEFT}, 2, 0.0f},
      
     // Dash Right: →→  
     {COMBO_DASH_RIGHT, "Dash Right",
      {KEY_RIGHT, KEY_RIGHT}, 2, 0.0f},
      
-    // Uppercut: ↓→ + L (jak w Street Fighter)
+    // Uppercut: ↓→ + L
     {COMBO_UPPERCUT, "Uppercut",
      {KEY_DOWN, KEY_RIGHT, KEY_ATTACK_LIGHT}, 3, 3.0f}
 };
@@ -37,10 +37,14 @@ Player::Player() {
     dashDirection = 1;
     dashTimer = 0.0f;
     dashCooldown = 0.0f;
-    dashSpeed = 1200.0f;      // Prędkość podczas dasha
-    normalSpeed = 500.0f;     // Normalna prędkość
-    speed = normalSpeed;      // Aktualna prędkość = normalna
+    dashSpeed = 800.0f;
+    normalSpeed = 500.0f;
+    speed = normalSpeed;
     dashOriginalSpeed = normalSpeed;
+    score = 0;
+    this->comboDamageMultiplier = 1.0f;
+    this->score = 0;
+    this->currentCombo = COMBO_NONE;
 }
 
 void Player::load(int x, int y, int width, int height, char* textureId) {
@@ -50,9 +54,11 @@ void Player::load(int x, int y, int width, int height, char* textureId) {
     this->originalWidth = width;
     this->originalHeight = height;
 
-    hp = 10;
+    invincibilityFrames = 0.0f;
 
-    GameObject::load(x, y - (height * scale - height), width * scale, height * scale, textureId);
+    hp = MAX_HP;
+    score = 0;
+    GameObject::load(x, y, width * scale, height * scale, textureId);
 
     float bodyWidth = width * 0.6f;
     float bodyHeight = height * 0.8f;
@@ -61,16 +67,18 @@ void Player::load(int x, int y, int width, int height, char* textureId) {
 
     setBodyHitbox(bodyOffsetX, bodyOffsetY, bodyWidth, bodyHeight);
 
-    attackHitbox = Hitbox(0, 0, 0, 0); // Początkowo brak hitboxa ataku
+    attackHitbox = Hitbox(0, 0, 0, 0);
 }
 
 void Player::setTexture(SDL_Renderer* renderer) {
     GameObject::setTexture(renderer);
 }
 
-void Player::draw(SDL_Renderer* renderer, Camera* camera) {
+void Player::draw(SDL_Renderer* renderer, Camera* camera, bool debug) {
     GameObject::draw(renderer, camera, movingLeft);
-    GameObject::drawDebug(renderer, camera);
+    if (debug) {
+        GameObject::drawDebug(renderer, camera);
+    }
 
     if (isAttacking()) {
         SDL_Rect viewPort = camera->getViewPort();
@@ -96,40 +104,16 @@ void Player::draw(SDL_Renderer* renderer, Camera* camera) {
 }
 
 void Player::update(float dt) {
-    if (dashTimer > 0) {
-        dashTimer -= dt;
-        
-        // Podczas dasha poruszaj się
-        if (state == DASHING) {
-            x += speed * dashDirection * dt;
-            
-            // Clampowanie
-            if (x < 0) x = 0;
-            // if (x + width > worldWidth) x = worldWidth - width;
-            
-            /* printf("DASHING: x=%.1f, speed=%.0f, timer=%.3f\n", 
-                   x, speed, dashTimer); */
-        }
-        
-        // Koniec dasha
-        if (dashTimer <= 0 && state == DASHING) {
-            /* printf("DASH END: restoring speed from %.0f to %.0f\n", 
-                   speed, dashOriginalSpeed); */
-            
-            // PRZYWRÓĆ normalną prędkość!
-            speed = 500.0f;
-            state = IDLE;
-        }
-    }
-    
     inputBuffer.debugPrint(dt);
 
-    // 2. Zmniejsz cooldown dasha
+    if (invincibilityFrames > 0) {
+        invincibilityFrames -= dt;
+    }
+
     if (dashCooldown > 0) {
         dashCooldown -= dt;
     }
     
-    // 3. Normalny ruch TYLKO jeśli nie dashujemy
     if (state != DASHING && state != HURT) {
         handleInput(dt);
     }
@@ -154,7 +138,7 @@ void Player::update(float dt) {
             if (lightAnimTimer > LIGHT_ATTACK_TIME / 3) {
                 lightAnimTimer = 0;
                 currentFrame = (currentFrame + 1) % 3;
-            }  // Klatka lekkiego ataku
+            }
             break;
         case ATTACKING_HEAVY:
             currentRow = 4;
@@ -166,7 +150,6 @@ void Player::update(float dt) {
             }
             break;
         case WALKING:
-            // Prosta animacja chodzenia
             currentRow = 0;
             static float walkAnimTimer = 0;
             walkAnimTimer += dt;
@@ -175,13 +158,24 @@ void Player::update(float dt) {
                 currentFrame = (currentFrame + 1) % 7;
             }
             break;
+        case DASHING:
+            currentRow = 2;
+            currentFrame = 5;
+            static float dashAnimTimer = 0;
+            dashAnimTimer += dt;
+            if (dashAnimTimer > 0.1f) {
+                printf("DASH ANIM FRAME UPDATE\n");
+                dashAnimTimer = 0;
+                currentFrame = (currentFrame + 1) % 2 + 5;
+            }
+            break;
         case HURT:
             currentRow = 1;
-            currentFrame = 3;  // Klatka obrażeń
+            currentFrame = 3;
             break;
         default:
             currentRow = 0;
-            currentFrame = 0;  // Klatka spoczynkowa
+            currentFrame = 0;
     }
 
     if (attackTimer <= 0 && state != IDLE && state != WALKING) {
@@ -190,16 +184,26 @@ void Player::update(float dt) {
         setAttackHitbox(0, 0, 0, 0);
     }
 
+    if (dashTimer > 0) {
+        state = DASHING;
+        dashTimer -= dt;
+        x += speed * dashDirection * dt;
+        
+        if (x < 0) x = 0;
+        
+            
+        if (dashTimer <= 0) {
+            speed = 500.0f;
+            state = IDLE;
+        }
+    }
+
     updateCombo(dt);
 
-    if (showDebugInfo && currentCombo != COMBO_NONE) {
-        // printf("Active Combo: %s\n", getComboName(currentCombo));
-    }
 }
 
 void Player::handleInput(float dt) {
     const Uint8* keystate = SDL_GetKeyboardState(NULL);
-
     handleMovement(keystate, dt);    
 }
 
@@ -209,37 +213,23 @@ void Player::handleMovement(const Uint8* keystate, float currentTime) {
 
     if (state == DASHING || state == HURT) return;
 
-    InputKey dashDir;
-
-    if (dashCooldown <= 0 && state != DASHING) {
-        if (inputBuffer.isDashing(currentTime, &dashDir)) {
-            if (dashDir == KEY_LEFT) {
-                performDash(true);
-                return; // WAŻNE: wyjdź z funkcji po dash
-            } else if (dashDir == KEY_RIGHT) {
-                performDash(false);
-                return; // WAŻNE: wyjdź z funkcji po dash
-            }
-        }
-    }
-
     if (!isAttacking() && state != HURT && state != DASHING) {
-        if (keystate[SDL_SCANCODE_W]) {
+        if (keystate[SDL_SCANCODE_W] && dashTimer <= 0) {
             y -= speed * currentTime;
             left = false;
             isMoving = true;
         }
-        if (keystate[SDL_SCANCODE_S]) {
+        if (keystate[SDL_SCANCODE_S] && dashTimer <= 0) {
             y += speed * currentTime;
             left = false;
             isMoving = true;
         }
-        if (keystate[SDL_SCANCODE_A]) {
+        if (keystate[SDL_SCANCODE_A] && dashTimer <= 0) {
             x -= speed * currentTime;
             left = true;
             isMoving = true;
         }
-        if (keystate[SDL_SCANCODE_D]) {
+        if (keystate[SDL_SCANCODE_D] && dashTimer <= 0) {
             x += speed * currentTime;
             left = false;
             isMoving = true;
@@ -259,7 +249,6 @@ void Player::handleMovement(const Uint8* keystate, float currentTime) {
 
     this->movingLeft = left;
 
-    // printf("Players [X Y] [W H] [%f %f] [%d %d] \n", x, y, width, height);
 
     if (y + height > worldHeight - 30) {
         y = worldHeight - height - 30;
@@ -297,7 +286,6 @@ int Player::getAttackDamage() const {
         if (state == ATTACKING_LIGHT) baseDamage = 1;
         if (state == ATTACKING_HEAVY) baseDamage = 2;
         
-        // Zastosuj mnożnik combo
         return (int)(baseDamage * comboDamageMultiplier);
 }
 
@@ -314,8 +302,6 @@ void Player::checkCombos(float currentTime) {
             currentCombo = combo.type;
             comboCooldown = 0.5f;
 
-            /* printf("COMBO EXECUTED: %s! (x%.1f damage)\n", 
-                   combo.name, combo.damageMultiplier); */
             return;
         }
     }
@@ -327,41 +313,38 @@ void Player::executeCombo(ComboType combo) {
     for (int i = 0; i < MAX_COMBOS; i++) {
         if (comboDefinitions[i].type == combo) {
             comboDamageMultiplier = comboDefinitions[i].damageMultiplier;
-            comboMultiplierTimer = 3.0f;  // Mnożnik aktywny przez 3 sekundy
+            comboMultiplierTimer = 3.0f;
             break;
         }
     }
 
     switch (combo) {
         case COMBO_TRIPLE_LIGHT:
-            // 3 szybkie ataki
             state = ATTACKING_LIGHT;
-            attackTimer = LIGHT_ATTACK_TIME * 0.7f;  // Szybsze
-            // Ustaw większy hitbox
+            attackTimer = LIGHT_ATTACK_TIME * 0.7f;
             setAttackHitbox(movingLeft ? -80 : width, height * 0.25f, 80, height * 0.5f);
             break;
             
         case COMBO_TRIPLE_HEAVY:
-            // 3 mocne ataki
             state = ATTACKING_HEAVY;
             attackTimer = HEAVY_ATTACK_TIME * 0.8f;
-            // Bardzo duży hitbox
             setAttackHitbox(movingLeft ? -100 : width, height * 0.2f, 100, height * 0.6f);
             break;
             
         case COMBO_MIXED:
-            // Mieszany combo
-            state = ATTACKING_HEAVY;  // Ostatni atak jest ciężki
+            state = ATTACKING_HEAVY;
             attackTimer = HEAVY_ATTACK_TIME;
-            // Duży hitbox z knockback
+
             setAttackHitbox(movingLeft ? -90 : width, height * 0.15f, 90, height * 0.7f);
             break;
             
         case COMBO_DASH_LEFT:
+            state = DASHING;
             performDash(true);
             break;
             
         case COMBO_DASH_RIGHT:
+            state = DASHING;
             performDash(false);
             break;
             
@@ -377,24 +360,25 @@ void Player::executeCombo(ComboType combo) {
 }
 
 void Player::performDash(bool left) {
-    if (state == DASHING || state == HURT || dashCooldown > 0 || state == ATTACKING_HEAVY || state == ATTACKING_LIGHT) return;  // Nie dashuj podczas dasha lub obrażeń
+    printf("DASH CALLED! State before: %d\n", state);
     
-    // printf("DASH START: speed before=%.0f\n", speed);
+    if (state == HURT) {
+        printf("Cannot dash: HURT state\n");
+        return;
+    }
+    if (dashCooldown > 0) {
+        printf("Cannot dash: on cooldown (%.2f)\n", dashCooldown);
+        return;
+    }
     
     dashOriginalSpeed = speed;
     
-    // Ustaw parametry dasha
     state = DASHING;
-    currentRow = 3;
     dashDirection = left ? -1 : 1;
-    dashTimer = 0.02f;
-    dashCooldown = 1.5f;
+    dashTimer = 0.3f;
+    dashCooldown = 1.0f;
     
-    // Ustaw prędkość dasha (TYLKO na czas dasha)
     speed = dashSpeed;
-    
-    /* printf("DASH %s! Timer=%.2f, Speed=%.0f->%.0f\n", 
-           left ? "LEFT" : "RIGHT", dashTimer, dashOriginalSpeed, speed); */
 }
 
 void Player::performUppercut() {
@@ -404,14 +388,10 @@ void Player::performUppercut() {
     setAttackHitbox(width * 0.25f, -height * 0.5f, width * 0.5f, height * 0.8f);
 
     y -= 30.0f;
-
-    // printf("UPPERCUT performed!\n");
 }
 
 void Player::updateCombo(float dt) {
     if (comboCooldown > 0) comboCooldown -= dt;
-
-    inputBuffer.clearOldInputs(SDL_GetTicks() / 1000.0f);
 
     if (attackTimer <= 0 && currentCombo != COMBO_NONE) currentCombo = COMBO_NONE;
 
@@ -430,3 +410,13 @@ const char* Player::getComboName(ComboType combo) const {
     return "None";
 }
 
+void Player::takeDamage(int damage) {
+    if (state == HURT || invincibilityFrames > 0) return;
+
+    hp -= damage;
+    if (hp < 0) hp = 0;
+
+    state = HURT;
+    attackTimer = 0.5f;
+    invincibilityFrames = 2.5f;
+}

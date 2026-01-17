@@ -28,7 +28,7 @@ SDL_Rect Camera::getViewPort() {
 }
 
 void Camera::setZoom(float newZoom) {
-    zoom = 1.0f;  // TYMCZASOWO!
+    zoom = 1.0f;
     
     viewPort.w = (int)(screenWidth / zoom);
     viewPort.h = (int)(screenHeight / zoom);

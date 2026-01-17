@@ -30,6 +30,26 @@ struct Hitbox {
                 rect1.y < rect2.y + rect2.h &&
                 rect1.y + rect1.h > rect2.y);
     }
+
+    bool collidesWithDepth(float objX, float objY, const Hitbox& other, 
+                       float otherX, float otherY, float yTolerance) const {
+        SDL_Rect rect1 = getRect(objX, objY);
+        SDL_Rect rect2 = other.getRect(otherX, otherY);
+                        
+        bool collisionX = (rect1.x < rect2.x + rect2.w &&
+                           rect1.x + rect1.w > rect2.x);
+        
+        if (!collisionX) return false;
+        
+        float center1Y = rect1.y + rect1.h / 2.0f;
+        float center2Y = rect2.y + rect2.h / 2.0f;
+        
+        float depthDiff = std::abs(center1Y - center2Y);
+        
+        float maxAllowedDiff = (rect1.h + rect2.h) / 2.0f * yTolerance;
+        
+        return (depthDiff <= maxAllowedDiff);
+    }
 };
 
 #endif
